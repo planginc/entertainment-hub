@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entertainment Hub</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Entertainment Hub</h1>
+      <nav id="nav">
+        <button class="nav-btn active" data-tab="tonight">Tonight</button>
+        <button class="nav-btn" data-tab="series">Series</button>
+        <button class="nav-btn" data-tab="movies">Movies</button>
+        <button class="nav-btn" data-tab="audiobooks">Audiobooks</button>
+      </nav>
+    </header>
+
+    <main id="content">
+      <div class="loading">Loading...</div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="modal hidden">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <div id="detail-body"></div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="edit-modal" class="modal hidden">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <div id="edit-body"></div>
+      </div>
+    </div>
+
+    <!-- FAB for adding new items -->
+    <button id="fab-add" title="Add new item">+</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
