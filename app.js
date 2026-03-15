@@ -6,6 +6,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let allData = [];
 let currentTab = 'tonight';
+let currentSubFilter = {}; // track per-tab sub-filter
 
 // ── Helpers ──
 
@@ -80,6 +81,23 @@ function getSeriesGroups(items) {
 
 // ── Rendering ──
 
+function renderSubFilters(filters, tab) {
+  const active = currentSubFilter[tab] || filters[0].key;
+  return `<div class="sub-filters" data-tab="${tab}">
+    ${filters.map(f => `<button class="sub-filter-btn ${f.key === active ? 'active' : ''}" data-subfilter="${f.key}" data-tab="${tab}">${f.label}<span class="count">${f.count}</span></button>`).join('')}
+  </div>`;
+}
+
+function bindSubFilters() {
+  document.querySelectorAll('.sub-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      currentSubFilter[tab] = btn.dataset.subfilter;
+      renderTab(tab);
+    });
+  });
+}
+
 function renderTab(tab) {
   currentTab = tab;
   const content = document.getElementById('content');
@@ -95,61 +113,87 @@ function renderTab(tab) {
   bindCardClicks();
   bindCollapsibles();
   bindSeriesGroupToggles();
+  bindSubFilters();
   if (tab === 'audiobooks') bindSearch();
 }
 
 // ── Tonight View ──
 
 function renderTonight() {
-  // Exclude audiobooks from Tonight — they have their own tab with filters
-  const noAudio = allData.filter(d => d.media_type !== 'audiobook');
-  const inProgress = noAudio.filter(d => d.status === 'in_progress');
-  const waiting = noAudio.filter(d => d.status === 'waiting');
-  const paused = noAudio.filter(d => d.status === 'paused');
-  const wantSeries = noAudio.filter(d => d.status === 'want' && d.series_name);
-  const wantStandalone = noAudio.filter(d => d.status === 'want' && !d.series_name);
+  const screenItems = allData.filter(d => d.media_type === 'series' || d.media_type === 'movie' || d.media_type === 'limited_series');
+  const inProgress = screenItems.filter(d => d.status === 'in_progress');
+  const want = screenItems.filter(d => d.status === 'want');
+  const waiting = screenItems.filter(d => d.status === 'waiting');
 
-  let html = '';
+  const active = currentSubFilter['tonight'] || 'watching';
 
-  // Currently Active
-  if (inProgress.length) {
-    html += sectionTitle('Currently Active', inProgress.length);
-    inProgress.forEach(d => { html += heroCard(d); });
+  let html = renderSubFilters([
+    { key: 'watching', label: 'Currently Watching', count: inProgress.length },
+    { key: 'want', label: 'Want to Watch', count: want.length },
+    { key: 'waiting', label: 'Waiting', count: waiting.length },
+  ], 'tonight');
+
+  html += '<div class="sub-filter-content">';
+
+  if (active === 'watching') {
+    if (inProgress.length) {
+      inProgress.forEach(d => { html += tonightCard(d, 'in_progress'); });
+    } else {
+      html += '<div class="empty-state">Nothing active. Pick something from Want to Watch.</div>';
+    }
+  } else if (active === 'want') {
+    if (want.length) {
+      const { groups, standalone } = getSeriesGroups(want);
+      Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, items]) => {
+        const allInSeries = allData.filter(d => d.series_name === name).sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
+        html += renderSeriesGroup(name, allInSeries);
+      });
+      standalone.forEach(d => { html += tonightCard(d, 'want'); });
+    } else {
+      html += '<div class="empty-state">Queue is empty.</div>';
+    }
+  } else if (active === 'waiting') {
+    if (waiting.length) {
+      waiting.forEach(d => { html += tonightCard(d, 'waiting'); });
+    } else {
+      html += '<div class="empty-state">No shows waiting for new seasons.</div>';
+    }
   }
 
-  // Caught Up / Waiting
-  if (waiting.length) {
-    html += sectionTitle('Caught Up / Waiting for New Season', waiting.length);
-    waiting.forEach(d => { html += card(d); });
-  }
-
-  // Paused
-  if (paused.length) {
-    html += sectionTitle('Paused / Pick Back Up', paused.length);
-    paused.forEach(d => {
-      html += card(d, { muted: true });
-    });
-  }
-
-  // Up Next: Series Queues
-  if (wantSeries.length) {
-    html += sectionTitle('Up Next: Series Queues', wantSeries.length);
-    const { groups } = getSeriesGroups(wantSeries);
-    // For each series queue, also include completed/in_progress items from same series for context
-    Object.entries(groups).forEach(([name, items]) => {
-      const allInSeries = allData.filter(d => d.series_name === name).sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
-      html += renderQueueFlow(name, allInSeries);
-    });
-  }
-
-  // Standalone Queue
-  if (wantStandalone.length) {
-    html += sectionTitle('Want to Watch/Listen', wantStandalone.length);
-    wantStandalone.forEach(d => { html += card(d); });
-  }
-
-  if (!html) html = '<div class="empty-state">Nothing active right now. Time to pick something new.</div>';
+  html += '</div>';
   return html;
+}
+
+function tonightCard(d, context) {
+  const series = d.series_name ? `${escapeHtml(d.series_name)}${d.series_order ? ' #' + d.series_order : ''}` : '';
+  const position = d.current_position ? escapeHtml(d.current_position) : '';
+
+  let actionBtn = '';
+  if (context === 'in_progress') {
+    actionBtn = `<span class="btn-inline watching-status">Watching</span>`;
+  } else if (context === 'want') {
+    actionBtn = `<button class="btn-inline start" onclick="event.stopPropagation();setStatus(${d.id},'in_progress')">Start Watching</button>`;
+  } else if (context === 'waiting') {
+    actionBtn = `<button class="btn-inline new-season" onclick="event.stopPropagation();setStatus(${d.id},'in_progress')">New Season!</button>`;
+  }
+
+  const isHero = context === 'in_progress';
+
+  return `<div class="${isHero ? 'hero-card' : 'card'}" data-id="${d.id}">
+    <div class="card-header">
+      <div>
+        <div class="card-title">${escapeHtml(d.title)}</div>
+        <div class="card-subtitle">${escapeHtml(d.creator || '')}</div>
+        ${series ? `<div class="card-subtitle" style="font-size:0.75rem">${series}</div>` : ''}
+        ${position ? `<div class="card-subtitle" style="font-size:0.75rem">${position}</div>` : ''}
+      </div>
+      <span class="status-dot ${d.status}"></span>
+    </div>
+    <div class="card-meta">
+      <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
+      ${actionBtn}
+    </div>
+  </div>`;
 }
 
 function heroCard(d) {
@@ -229,43 +273,73 @@ function renderQueueFlow(name, items) {
 
 function renderSeriesTab() {
   const items = getByType('series');
+  const limitedItems = getByType('limited_series');
   const inProgress = getByStatus(items, 'in_progress');
   const waiting = getByStatus(items, 'waiting');
   const paused = getByStatus(items, 'paused');
   const want = getByStatus(items, 'want');
   const completed = getByStatus(items, 'completed');
 
-  let html = '';
-  if (inProgress.length) {
-    html += sectionTitle('In Progress', inProgress.length);
-    inProgress.forEach(d => { html += card(d); });
-  }
-  if (waiting.length) {
-    html += sectionTitle('Caught Up / Waiting', waiting.length);
-    waiting.forEach(d => { html += card(d); });
-  }
-  if (paused.length) {
-    html += sectionTitle('Paused', paused.length);
-    paused.forEach(d => { html += card(d, { muted: true }); });
-  }
-  if (want.length) {
-    html += sectionTitle('Want to Watch', want.length);
-    // Group by series_name
-    const { groups, standalone } = getSeriesGroups(want);
-    Object.entries(groups).forEach(([name, seriesItems]) => {
-      const allInSeries = allData.filter(d => d.series_name === name).sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
-      html += renderQueueFlow(name, allInSeries);
-    });
-    standalone.forEach(d => { html += card(d); });
-  }
-  if (completed.length) {
-    html += sectionTitle('Completed', completed.length, true);
-    html += `<div class="collapsible-content" data-collapsed="true" style="display:none">`;
-    completed.sort((a, b) => (b.rating || 0) - (a.rating || 0)).forEach(d => { html += card(d); });
-    html += '</div>';
+  const active = currentSubFilter['series'] || 'watching';
+
+  let html = renderSubFilters([
+    { key: 'watching', label: 'Currently Watching', count: inProgress.length },
+    { key: 'caught_up', label: 'Caught Up', count: waiting.length },
+    { key: 'want', label: 'Want to Watch', count: want.length },
+    { key: 'limited', label: 'Limited Series', count: limitedItems.length },
+    { key: 'paused', label: 'Paused', count: paused.length },
+    { key: 'completed', label: 'Completed', count: completed.length },
+  ], 'series');
+
+  html += '<div class="sub-filter-content">';
+
+  if (active === 'watching') {
+    if (inProgress.length) {
+      inProgress.forEach(d => { html += tonightCard(d, 'in_progress'); });
+    } else {
+      html += '<div class="empty-state">No series in progress.</div>';
+    }
+  } else if (active === 'caught_up') {
+    if (waiting.length) {
+      waiting.forEach(d => { html += tonightCard(d, 'waiting'); });
+    } else {
+      html += '<div class="empty-state">No series waiting for new seasons.</div>';
+    }
+  } else if (active === 'want') {
+    if (want.length) {
+      const { groups, standalone } = getSeriesGroups(want);
+      Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, seriesItems]) => {
+        const allInSeries = allData.filter(d => d.series_name === name).sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
+        html += renderSeriesGroup(name, allInSeries);
+      });
+      standalone.forEach(d => { html += tonightCard(d, 'want'); });
+    } else {
+      html += '<div class="empty-state">Nothing in the queue.</div>';
+    }
+  } else if (active === 'limited') {
+    if (limitedItems.length) {
+      const wantLimited = getByStatus(limitedItems, 'want');
+      const progressLimited = getByStatus(limitedItems, 'in_progress');
+      const doneLimited = getByStatus(limitedItems, 'completed');
+      [...progressLimited, ...wantLimited, ...doneLimited].forEach(d => { html += tonightCard(d, d.status); });
+    } else {
+      html += '<div class="empty-state">No limited series yet. Add some!</div>';
+    }
+  } else if (active === 'paused') {
+    if (paused.length) {
+      paused.forEach(d => { html += card(d, { muted: true }); });
+    } else {
+      html += '<div class="empty-state">No paused series.</div>';
+    }
+  } else if (active === 'completed') {
+    if (completed.length) {
+      completed.sort((a, b) => (b.rating || 0) - (a.rating || 0)).forEach(d => { html += card(d); });
+    } else {
+      html += '<div class="empty-state">No completed series.</div>';
+    }
   }
 
-  if (!html) html = '<div class="empty-state">No series tracked yet.</div>';
+  html += '</div>';
   return html;
 }
 
@@ -273,33 +347,45 @@ function renderSeriesTab() {
 
 function renderMoviesTab() {
   const items = getByType('movie');
-  const { groups, standalone } = getSeriesGroups(items);
+  const want = items.filter(d => d.status === 'want');
+  const watched = items.filter(d => d.status === 'completed');
 
-  let html = '';
+  const active = currentSubFilter['movies'] || 'want';
 
-  // Franchises first (expandable like audiobook series)
-  const sortedFranchises = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
-  if (sortedFranchises.length) {
-    html += sectionTitle('Franchises', sortedFranchises.length);
-    sortedFranchises.forEach(([name, franchiseItems]) => {
-      html += renderSeriesGroup(name, franchiseItems);
-    });
+  let html = renderSubFilters([
+    { key: 'want', label: 'Want to Watch', count: want.length },
+    { key: 'watched', label: 'Watched', count: watched.length },
+  ], 'movies');
+
+  html += '<div class="sub-filter-content">';
+
+  if (active === 'want') {
+    if (want.length) {
+      // Show franchise groups for want items
+      const { groups, standalone } = getSeriesGroups(want);
+      Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, franchiseItems]) => {
+        const allInFranchise = allData.filter(d => d.series_name === name && d.media_type === 'movie').sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
+        html += renderSeriesGroup(name, allInFranchise);
+      });
+      standalone.forEach(d => { html += tonightCard(d, 'want'); });
+    } else {
+      html += '<div class="empty-state">No movies in the queue.</div>';
+    }
+  } else if (active === 'watched') {
+    if (watched.length) {
+      // Show franchise groups for watched items
+      const { groups, standalone } = getSeriesGroups(watched);
+      Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, franchiseItems]) => {
+        const allInFranchise = allData.filter(d => d.series_name === name && d.media_type === 'movie').sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
+        html += renderSeriesGroup(name, allInFranchise);
+      });
+      standalone.sort((a, b) => (b.rating || 0) - (a.rating || 0)).forEach(d => { html += card(d); });
+    } else {
+      html += '<div class="empty-state">No watched movies.</div>';
+    }
   }
 
-  // Standalone movies by status
-  const standaloneWant = standalone.filter(d => d.status === 'want');
-  const standaloneCompleted = standalone.filter(d => d.status === 'completed');
-
-  if (standaloneWant.length) {
-    html += sectionTitle('Want to Watch', standaloneWant.length);
-    standaloneWant.forEach(d => { html += card(d); });
-  }
-  if (standaloneCompleted.length) {
-    html += sectionTitle('Completed', standaloneCompleted.length);
-    standaloneCompleted.sort((a, b) => (b.rating || 0) - (a.rating || 0)).forEach(d => { html += card(d); });
-  }
-
-  if (!html) html = '<div class="empty-state">No movies tracked yet.</div>';
+  html += '</div>';
   return html;
 }
 
@@ -588,6 +674,7 @@ function showEditForm(id) {
         <select class="form-select" name="media_type">
           <option value="audiobook" ${item?.media_type === 'audiobook' ? 'selected' : ''}>Audiobook</option>
           <option value="series" ${item?.media_type === 'series' ? 'selected' : ''}>Series</option>
+          <option value="limited_series" ${item?.media_type === 'limited_series' ? 'selected' : ''}>Limited Series</option>
           <option value="movie" ${item?.media_type === 'movie' ? 'selected' : ''}>Movie</option>
         </select>
       </div>

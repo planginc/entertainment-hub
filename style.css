@@ -283,6 +283,44 @@ main {
   color: var(--green);
 }
 
+/* Sub-filter pills */
+.sub-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sub-filter-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sub-filter-btn:hover { border-color: var(--accent-dim); color: var(--text); }
+.sub-filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.sub-filter-btn .count {
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.sub-filter-content { min-height: 100px; }
+
 /* Search/filter bar */
 .search-bar {
   position: sticky;
@@ -587,6 +625,24 @@ main {
   padding: 30px 0;
   font-size: 0.85rem;
 }
+
+/* Inline action buttons on cards */
+.btn-inline {
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+  transition: opacity 0.15s;
+}
+.btn-inline:hover { opacity: 0.85; }
+.btn-inline.caught-up { background: rgba(251,146,60,0.2); color: var(--orange); }
+.btn-inline.start { background: rgba(74,222,128,0.15); color: var(--green); }
+.btn-inline.new-season { background: rgba(91,140,247,0.2); color: var(--accent); }
+.btn-inline.watching-status { background: rgba(74,222,128,0.15); color: var(--green); cursor: default; pointer-events: none; }
 
 /* Toast */
 .toast {
