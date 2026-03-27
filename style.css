@@ -157,6 +157,26 @@ main {
   flex-wrap: wrap;
 }
 
+/* Score line */
+.card-score {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Genre tag */
+.genre-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Platform badges */
 .platform-badge {
   font-size: 0.65rem;

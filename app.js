@@ -1,12 +1,29 @@
-const SUPABASE_URL = 'https://gnpzqjmeiusniabmxomt.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImducHpxam1laXVzbmlhYm14b210Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc3Nzc1NDAsImV4cCI6MjA2MzM1MzU0MH0.JnL0eLrvcJ3Fo2eEkMM9pHvX6VKfJmgxy9gJNEnV_84';
-const USER_ID = '6285585111';
-
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const CONVEX_SITE = 'https://exuberant-lapwing-294.convex.site';
 
 let allData = [];
 let currentTab = 'tonight';
-let currentSubFilter = {}; // track per-tab sub-filter
+let currentSubFilter = {};
+
+// ── API ──
+
+async function apiGet(path) {
+  const res = await fetch(CONVEX_SITE + path);
+  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(CONVEX_SITE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`POST ${path} failed: ${res.status} ${text}`);
+  }
+  return res.json();
+}
 
 // ── Helpers ──
 
@@ -39,20 +56,19 @@ function escapeHtml(str) {
 // ── Data Loading ──
 
 async function loadData() {
-  const { data, error } = await sb
-    .from('entertainment')
-    .select('*')
-    .eq('user_telegram_id', USER_ID)
-    .order('series_name', { ascending: true, nullsFirst: false })
-    .order('series_order', { ascending: true });
-
-  if (error) {
-    console.error('Failed to load:', error);
+  try {
+    const data = await apiGet('/api/entertainment');
+    allData = data || [];
+    allData.sort((a, b) => {
+      const sn = (a.series_name || '').localeCompare(b.series_name || '');
+      if (sn !== 0) return sn;
+      return (a.series_order || 0) - (b.series_order || 0);
+    });
+    renderTab(currentTab);
+  } catch (err) {
+    console.error('Failed to load:', err);
     document.getElementById('content').innerHTML = '<div class="loading">Failed to load data</div>';
-    return;
   }
-  allData = data || [];
-  renderTab(currentTab);
 }
 
 function getByType(type) {
@@ -74,7 +90,6 @@ function getSeriesGroups(items) {
       standalone.push(item);
     }
   });
-  // Sort each group by series_order
   Object.values(groups).forEach(g => g.sort((a, b) => (a.series_order || 0) - (b.series_order || 0)));
   return { groups, standalone };
 }
@@ -109,7 +124,6 @@ function renderTab(tab) {
     case 'audiobooks': content.innerHTML = renderAudiobooksTab(); break;
   }
 
-  // Bind events after render
   bindCardClicks();
   bindCollapsibles();
   bindSeriesGroupToggles();
@@ -117,50 +131,20 @@ function renderTab(tab) {
   if (tab === 'audiobooks') bindSearch();
 }
 
-// ── Tonight View ──
+// ── Currently Watching View ──
 
 function renderTonight() {
   const screenItems = allData.filter(d => d.media_type === 'series' || d.media_type === 'movie' || d.media_type === 'limited_series');
   const inProgress = screenItems.filter(d => d.status === 'in_progress');
-  const want = screenItems.filter(d => d.status === 'want');
-  const waiting = screenItems.filter(d => d.status === 'waiting');
 
-  const active = currentSubFilter['tonight'] || 'watching';
+  let html = '';
 
-  let html = renderSubFilters([
-    { key: 'watching', label: 'Currently Watching', count: inProgress.length },
-    { key: 'want', label: 'Want to Watch', count: want.length },
-    { key: 'waiting', label: 'Waiting', count: waiting.length },
-  ], 'tonight');
-
-  html += '<div class="sub-filter-content">';
-
-  if (active === 'watching') {
-    if (inProgress.length) {
-      inProgress.forEach(d => { html += tonightCard(d, 'in_progress'); });
-    } else {
-      html += '<div class="empty-state">Nothing active. Pick something from Want to Watch.</div>';
-    }
-  } else if (active === 'want') {
-    if (want.length) {
-      const { groups, standalone } = getSeriesGroups(want);
-      Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, items]) => {
-        const allInSeries = allData.filter(d => d.series_name === name).sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
-        html += renderSeriesGroup(name, allInSeries);
-      });
-      standalone.forEach(d => { html += tonightCard(d, 'want'); });
-    } else {
-      html += '<div class="empty-state">Queue is empty.</div>';
-    }
-  } else if (active === 'waiting') {
-    if (waiting.length) {
-      waiting.forEach(d => { html += tonightCard(d, 'waiting'); });
-    } else {
-      html += '<div class="empty-state">No shows waiting for new seasons.</div>';
-    }
+  if (inProgress.length) {
+    inProgress.forEach(d => { html += tonightCard(d, 'in_progress'); });
+  } else {
+    html += '<div class="empty-state">Nothing active right now. Start something from Series or Movies.</div>';
   }
 
-  html += '</div>';
   return html;
 }
 
@@ -172,9 +156,9 @@ function tonightCard(d, context) {
   if (context === 'in_progress') {
     actionBtn = `<span class="btn-inline watching-status">Watching</span>`;
   } else if (context === 'want') {
-    actionBtn = `<button class="btn-inline start" onclick="event.stopPropagation();setStatus(${d.id},'in_progress')">Start Watching</button>`;
+    actionBtn = `<button class="btn-inline start" onclick="event.stopPropagation();setStatus('${d.id}','in_progress')">Start Watching</button>`;
   } else if (context === 'waiting') {
-    actionBtn = `<button class="btn-inline new-season" onclick="event.stopPropagation();setStatus(${d.id},'in_progress')">New Season!</button>`;
+    actionBtn = `<button class="btn-inline new-season" onclick="event.stopPropagation();setStatus('${d.id}','in_progress')">New Season!</button>`;
   }
 
   const isHero = context === 'in_progress';
@@ -230,7 +214,14 @@ function card(d, opts = {}) {
         <div class="card-title">${escapeHtml(d.title)}</div>
         <div class="card-subtitle">${escapeHtml(d.creator)}${narrator}</div>
         ${series ? `<div class="card-subtitle" style="font-size:0.75rem">${series}</div>` : ''}
-        ${d.notes ? `<div class="card-subtitle" style="font-style:italic;font-size:0.75rem">${escapeHtml(d.notes)}</div>` : ''}
+        ${(() => {
+          if (!d.notes) return '';
+          const lines = d.notes.split('\n\n');
+          const scoreLine = lines[0].startsWith('Scores:') ? lines[0].replace('Scores:', '').trim() : null;
+          const overview = scoreLine ? lines.slice(1).join(' ').trim() : d.notes;
+          return (scoreLine ? `<div class="card-score">${escapeHtml(scoreLine)}</div>` : '') +
+                 (overview ? `<div class="card-subtitle" style="font-style:italic;font-size:0.75rem">${escapeHtml(overview)}</div>` : '');
+        })()}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         <span class="status-dot ${d.status}"></span>
@@ -239,6 +230,7 @@ function card(d, opts = {}) {
     </div>
     <div class="card-meta">
       <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
+      ${d.genre ? `<span class="genre-tag">${escapeHtml(d.genre.split(',')[0].trim())}</span>` : ''}
       ${d.times_completed > 1 ? `<span style="font-size:0.7rem;color:var(--text-muted)">${d.times_completed}x</span>` : ''}
       ${d.metadata?.runtime_minutes ? `<span style="font-size:0.7rem;color:var(--text-dim)">${formatRuntime(d.metadata.runtime_minutes)}</span>` : ''}
     </div>
@@ -361,7 +353,6 @@ function renderMoviesTab() {
 
   if (active === 'want') {
     if (want.length) {
-      // Show franchise groups for want items
       const { groups, standalone } = getSeriesGroups(want);
       Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, franchiseItems]) => {
         const allInFranchise = allData.filter(d => d.series_name === name && d.media_type === 'movie').sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
@@ -373,7 +364,6 @@ function renderMoviesTab() {
     }
   } else if (active === 'watched') {
     if (watched.length) {
-      // Show franchise groups for watched items
       const { groups, standalone } = getSeriesGroups(watched);
       Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0])).forEach(([name, franchiseItems]) => {
         const allInFranchise = allData.filter(d => d.series_name === name && d.media_type === 'movie').sort((a, b) => (a.series_order || 0) - (b.series_order || 0));
@@ -397,7 +387,6 @@ function renderAudiobooksTab() {
 
   let html = '';
 
-  // Search bar
   html += `<div class="search-bar">
     <input type="text" class="search-input" id="audiobook-search" placeholder="Search titles, authors, narrators, series...">
     <div class="filter-row">
@@ -409,7 +398,6 @@ function renderAudiobooksTab() {
     </div>
   </div>`;
 
-  // Render all audiobook content into a filterable container
   html += '<div id="audiobook-list">';
   html += renderAudiobookList(groups, standalone, items);
   html += '</div>';
@@ -420,14 +408,12 @@ function renderAudiobooksTab() {
 function renderAudiobookList(groups, standalone, allAudiobooks) {
   let html = '';
 
-  // Summary
   const completed = allAudiobooks.filter(d => d.status === 'completed').length;
   const inProg = allAudiobooks.filter(d => d.status === 'in_progress').length;
   html += `<div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:16px">
     ${allAudiobooks.length} audiobooks &middot; ${Object.keys(groups).length} series &middot; ${completed} completed &middot; ${inProg} in progress
   </div>`;
 
-  // Series groups
   const sortedSeries = Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
   if (sortedSeries.length) {
     html += sectionTitle('Series', sortedSeries.length);
@@ -436,7 +422,6 @@ function renderAudiobookList(groups, standalone, allAudiobooks) {
     });
   }
 
-  // Standalone
   if (standalone.length) {
     html += sectionTitle('Standalone', standalone.length);
     standalone.sort((a, b) => a.title.localeCompare(b.title)).forEach(d => { html += card(d); });
@@ -495,14 +480,6 @@ async function showDetail(id) {
   const item = allData.find(d => d.id === id);
   if (!item) return;
 
-  // Load history
-  const { data: history } = await sb
-    .from('entertainment_history')
-    .select('*')
-    .eq('entertainment_id', id)
-    .eq('user_telegram_id', USER_ID)
-    .order('event_date', { ascending: false });
-
   const narrator = item.metadata?.narrator || '';
   const runtime = item.metadata?.runtime_minutes ? formatRuntime(item.metadata.runtime_minutes) : '';
   const series = item.series_name || '';
@@ -536,7 +513,6 @@ async function showDetail(id) {
     ${item.tags?.length ? `<div class="detail-row"><span class="detail-label">Tags</span><span class="detail-value">${item.tags.map(t => escapeHtml(t)).join(', ')}</span></div>` : ''}
   `;
 
-  // Series context
   if (seriesItems.length > 1) {
     html += `<div style="margin-top:16px"><div class="section-title">Series: ${escapeHtml(series)}</div>`;
     seriesItems.forEach(si => {
@@ -551,46 +527,27 @@ async function showDetail(id) {
     html += '</div>';
   }
 
-  // Actions
   html += `<div class="detail-actions">
-    ${item.status !== 'completed' ? `<button class="btn success" onclick="markCompleted(${item.id})">Mark Completed</button>` : ''}
-    ${item.status !== 'in_progress' ? `<button class="btn primary" onclick="setStatus(${item.id},'in_progress')">Start</button>` : ''}
-    ${item.status === 'in_progress' ? `<button class="btn" style="color:var(--yellow)" onclick="setStatus(${item.id},'paused')">Pause</button>` : ''}
-    ${item.status === 'in_progress' && item.media_type === 'series' ? `<button class="btn" style="color:var(--orange)" onclick="setStatus(${item.id},'waiting')">Caught Up</button>` : ''}
-    ${item.status === 'waiting' ? `<button class="btn primary" onclick="setStatus(${item.id},'in_progress')">New Season!</button>` : ''}
-    <button class="btn" onclick="showEditForm(${item.id})">Edit</button>
+    ${item.status !== 'completed' ? `<button class="btn success" onclick="markCompleted('${item.id}')">Mark Completed</button>` : ''}
+    ${item.status !== 'in_progress' ? `<button class="btn primary" onclick="setStatus('${item.id}','in_progress')">Start</button>` : ''}
+    ${item.status === 'in_progress' ? `<button class="btn" style="color:var(--yellow)" onclick="setStatus('${item.id}','paused')">Pause</button>` : ''}
+    ${item.status === 'in_progress' && item.media_type === 'series' ? `<button class="btn" style="color:var(--orange)" onclick="setStatus('${item.id}','waiting')">Caught Up</button>` : ''}
+    ${item.status === 'waiting' ? `<button class="btn primary" onclick="setStatus('${item.id}','in_progress')">New Season!</button>` : ''}
+    <button class="btn" onclick="showEditForm('${item.id}')">Edit</button>
   </div>`;
 
-  // Rating picker
   html += `<div style="margin-top:16px"><div class="section-title">Rating</div>
     <div class="rating-picker">
-      ${[1,2,3,4,5].map(i => `<span class="star ${i <= (item.rating || 0) ? 'filled' : ''}" onclick="setRating(${item.id}, ${i})">&#9733;</span>`).join('')}
+      ${[1,2,3,4,5].map(i => `<span class="star ${i <= (item.rating || 0) ? 'filled' : ''}" onclick="setRating('${item.id}', ${i})">&#9733;</span>`).join('')}
     </div>
   </div>`;
-
-  // History
-  if (history?.length) {
-    html += `<div style="margin-top:16px"><div class="section-title">History</div>`;
-    history.forEach(h => {
-      const date = h.event_date ? new Date(h.event_date).toLocaleDateString() : '';
-      html += `<div class="history-entry">
-        <div class="history-dot"></div>
-        <div>
-          <div>${escapeHtml(h.event_type)}${h.notes ? ': ' + escapeHtml(h.notes) : ''}</div>
-          <div class="history-date">${date}</div>
-        </div>
-      </div>`;
-    });
-    html += '</div>';
-  }
 
   document.getElementById('detail-body').innerHTML = html;
   document.getElementById('detail-modal').classList.remove('hidden');
 
-  // Bind series item clicks inside modal
   document.querySelectorAll('#detail-body .series-item[data-id]').forEach(el => {
     el.addEventListener('click', () => {
-      showDetail(parseInt(el.dataset.id));
+      showDetail(el.dataset.id);
     });
   });
 }
@@ -598,62 +555,40 @@ async function showDetail(id) {
 // ── Status/Rating Updates ──
 
 async function setStatus(id, status) {
-  const updates = { status, updated_at: new Date().toISOString() };
-
-  const { error } = await sb.from('entertainment').update(updates).eq('id', id);
-  if (error) {
-    console.error('Update failed:', error);
-    alert('Failed to update: ' + error.message);
-    return;
+  try {
+    await apiPost('/api/entertainment/update', { id, status });
+    closeModals();
+    await loadData();
+    showToast(`Updated to ${status.replace('_', ' ')}`);
+  } catch (err) {
+    console.error('Update failed:', err);
+    alert('Failed to update: ' + err.message);
   }
-
-  // Create history entry (don't block on failure)
-  const { error: histErr } = await sb.from('entertainment_history').insert({
-    entertainment_id: id,
-    event_type: status === 'completed' ? 'completed' : (status === 'in_progress' ? 'started' : status),
-    event_date: new Date().toISOString(),
-    user_telegram_id: USER_ID
-  });
-  if (histErr) console.error('History insert failed:', histErr);
-
-  // Close modal and refresh
-  closeModals();
-  await loadData();
-  showToast(`Updated to ${status.replace('_', ' ')}`);
 }
 
 async function markCompleted(id) {
   const item = allData.find(d => d.id === id);
   const newCount = (item?.times_completed || 0) + 1;
-
-  await sb.from('entertainment').update({
-    status: 'completed',
-    times_completed: newCount,
-    updated_at: new Date().toISOString()
-  }).eq('id', id);
-
-  await sb.from('entertainment_history').insert({
-    entertainment_id: id,
-    event_type: 'completed',
-    listen_number: newCount,
-    event_date: new Date().toISOString(),
-    user_telegram_id: USER_ID
-  });
-
-  closeModals();
-  await loadData();
-  showToast('Marked as completed');
+  try {
+    await apiPost('/api/entertainment/update', { id, status: 'completed', times_completed: newCount });
+    closeModals();
+    await loadData();
+    showToast('Marked as completed');
+  } catch (err) {
+    console.error('markCompleted failed:', err);
+    alert('Failed: ' + err.message);
+  }
 }
 
 async function setRating(id, rating) {
-  await sb.from('entertainment').update({
-    rating,
-    updated_at: new Date().toISOString()
-  }).eq('id', id);
-
-  const item = allData.find(d => d.id === id);
-  if (item) item.rating = rating;
-  showDetail(id);
+  try {
+    await apiPost('/api/entertainment/update', { id, rating });
+    const item = allData.find(d => d.id === id);
+    if (item) item.rating = rating;
+    showDetail(id);
+  } catch (err) {
+    console.error('setRating failed:', err);
+  }
 }
 
 // ── Edit Form ──
@@ -749,19 +684,20 @@ function showEditForm(id) {
       genre: form.genre.value || null,
       notes: form.notes.value || null,
       current_position: form.current_position.value || null,
-      user_telegram_id: USER_ID,
-      updated_at: new Date().toISOString()
     };
 
-    if (isNew) {
-      data.owned = data.media_type === 'audiobook';
-      await sb.from('entertainment').insert(data);
-    } else {
-      await sb.from('entertainment').update(data).eq('id', id);
+    try {
+      if (isNew) {
+        data.owned = data.media_type === 'audiobook';
+        await apiPost('/api/entertainment/insert', data);
+      } else {
+        await apiPost('/api/entertainment/update', { id, ...data });
+      }
+      closeModals();
+      await loadData();
+    } catch (err) {
+      alert('Save failed: ' + err.message);
     }
-
-    closeModals();
-    await loadData();
   });
 }
 
@@ -790,13 +726,11 @@ function filterAudiobooks() {
 
   let items = getByType('audiobook');
 
-  // Apply status/type filter
   if (activeFilter === 'in_progress') items = items.filter(d => d.status === 'in_progress');
   else if (activeFilter === 'completed') items = items.filter(d => d.status === 'completed');
   else if (activeFilter === 'series') items = items.filter(d => d.series_name);
   else if (activeFilter === 'standalone') items = items.filter(d => !d.series_name);
 
-  // Apply search
   if (query) {
     items = items.filter(d => {
       const searchable = [d.title, d.creator, d.series_name, d.metadata?.narrator, d.genre].filter(Boolean).join(' ').toLowerCase();
@@ -829,7 +763,7 @@ function bindCardClicks() {
   document.querySelectorAll('.card[data-id], .hero-card[data-id], .series-item[data-id], .queue-item[data-id]').forEach(el => {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      showDetail(parseInt(el.dataset.id));
+      showDetail(el.dataset.id);
     });
   });
 }
@@ -915,7 +849,6 @@ document.getElementById('fab-add').addEventListener('click', () => {
   showEditForm(null);
 });
 
-// Restore tab from URL hash
 const hash = location.hash.replace('#', '');
 if (['tonight', 'series', 'movies', 'audiobooks'].includes(hash)) {
   currentTab = hash;
@@ -924,5 +857,4 @@ if (['tonight', 'series', 'movies', 'audiobooks'].includes(hash)) {
   });
 }
 
-// Load!
 loadData();
