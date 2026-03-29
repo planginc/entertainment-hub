@@ -511,9 +511,13 @@ async function showDetail(id) {
   const seriesPos = series && item.series_order ? `Book ${item.series_order} of ${seriesItems.length}` : '';
 
   let html = `
-    ${item.metadata?.posterUrl ? `<img class="detail-poster" src="${escapeHtml(item.metadata.posterUrl)}" alt="${escapeHtml(item.title)}">` : ''}
-    <div class="detail-title">${escapeHtml(item.title)}</div>
-    <div class="detail-creator">${escapeHtml(item.creator)}</div>
+    <div class="detail-header">
+      ${item.metadata?.posterUrl ? `<img class="detail-poster" src="${escapeHtml(item.metadata.posterUrl)}" alt="${escapeHtml(item.title)}">` : ''}
+      <div class="detail-header-text">
+        <div class="detail-title">${escapeHtml(item.title)}</div>
+        <div class="detail-creator">${escapeHtml(item.creator)}</div>
+      </div>
+    </div>
 
     <div class="detail-row">
       <span class="detail-label">Status</span>

@@ -588,14 +588,24 @@ main {
 .modal-close:hover { color: var(--text); }
 
 /* Detail view */
-.detail-poster {
-  width: 100%;
-  max-height: 220px;
-  object-fit: cover;
-  object-position: center top;
-  border-radius: var(--radius-sm);
+.detail-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
   margin-bottom: 16px;
+}
+
+.detail-poster {
+  width: 80px;
+  min-width: 80px;
+  border-radius: var(--radius-sm);
   display: block;
+  object-fit: cover;
+}
+
+.detail-header-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .detail-title {
@@ -609,7 +619,7 @@ main {
 .detail-creator {
   font-size: 0.9rem;
   color: var(--text-muted);
-  margin-bottom: 16px;
+  margin-top: 4px;
 }
 
 .detail-row {
