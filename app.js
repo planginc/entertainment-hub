@@ -3,6 +3,7 @@ const CONVEX_SITE = 'https://exuberant-lapwing-294.convex.site';
 let allData = [];
 let currentTab = 'tonight';
 let currentSubFilter = {};
+let searchQuery = '';
 
 // ── API ──
 
@@ -117,11 +118,16 @@ function renderTab(tab) {
   currentTab = tab;
   const content = document.getElementById('content');
 
-  switch (tab) {
-    case 'tonight': content.innerHTML = renderTonight(); break;
-    case 'series': content.innerHTML = renderSeriesTab(); break;
-    case 'movies': content.innerHTML = renderMoviesTab(); break;
-    case 'audiobooks': content.innerHTML = renderAudiobooksTab(); break;
+  if (searchQuery) {
+    content.innerHTML = renderSearchResults(searchQuery);
+  } else {
+    switch (tab) {
+      case 'tonight': content.innerHTML = renderTonight(); break;
+      case 'series': content.innerHTML = renderSeriesTab(); break;
+      case 'movies': content.innerHTML = renderMoviesTab(); break;
+      case 'audiobooks': content.innerHTML = renderAudiobooksTab(); break;
+      case 'stats': content.innerHTML = renderStatsTab(); break;
+    }
   }
 
   bindCardClicks();
@@ -552,6 +558,7 @@ async function showDetail(id) {
     ${item.status === 'in_progress' ? `<button class="btn" style="color:var(--yellow)" onclick="setStatus('${item.id}','paused')">Pause</button>` : ''}
     ${item.status === 'in_progress' && item.media_type === 'series' ? `<button class="btn" style="color:var(--orange)" onclick="setStatus('${item.id}','waiting')">Caught Up</button>` : ''}
     ${item.status === 'waiting' ? `<button class="btn primary" onclick="setStatus('${item.id}','in_progress')">New Season!</button>` : ''}
+    ${item.metadata?.trailerKey ? `<a class="btn trailer-btn" href="https://www.youtube.com/watch?v=${escapeHtml(item.metadata.trailerKey)}" target="_blank" rel="noopener">&#9654; Trailer</a>` : ''}
     <button class="btn" onclick="showEditForm('${item.id}')">Edit</button>
   </div>`;
 
@@ -768,6 +775,136 @@ function filterAudiobooks() {
   }
 }
 
+// ── Global Search ──
+
+function renderSearchResults(query) {
+  const q = query.toLowerCase();
+  const results = allData.filter(d => {
+    const searchable = [d.title, d.creator, d.genre, d.series_name, d.platform, d.metadata?.narrator, d.notes]
+      .filter(Boolean).join(' ').toLowerCase();
+    return searchable.includes(q);
+  });
+
+  if (!results.length) return '<div class="empty-state">No results for &ldquo;' + escapeHtml(query) + '&rdquo;</div>';
+
+  const byType = { movie: [], series: [], limited_series: [], audiobook: [] };
+  results.forEach(d => {
+    const t = d.media_type || 'movie';
+    if (byType[t]) byType[t].push(d); else byType.movie.push(d);
+  });
+
+  let html = `<div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:16px">${results.length} result${results.length !== 1 ? 's' : ''} for &ldquo;${escapeHtml(query)}&rdquo;</div>`;
+
+  [['movie','Movies'], ['series','Series'], ['limited_series','Limited Series'], ['audiobook','Audiobooks']].forEach(([type, label]) => {
+    if (!byType[type].length) return;
+    html += sectionTitle(label, byType[type].length);
+    byType[type].forEach(d => { html += card(d); });
+  });
+
+  return html;
+}
+
+// ── Surprise Me ──
+
+function surpriseMe() {
+  const pool = allData.filter(d => d.status === 'want' && d.media_type !== 'audiobook');
+  if (!pool.length) { showToast('Nothing in your want list!'); return; }
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  showDetail(pick.id);
+}
+
+// ── Stats Tab ──
+
+function renderStatsTab() {
+  const movies = allData.filter(d => d.media_type === 'movie');
+  const series = allData.filter(d => d.media_type === 'series');
+  const limited = allData.filter(d => d.media_type === 'limited_series');
+  const books = allData.filter(d => d.media_type === 'audiobook');
+
+  const completed = allData.filter(d => d.status === 'completed');
+  const inProgress = allData.filter(d => d.status === 'in_progress');
+  const wantList = allData.filter(d => d.status === 'want');
+
+  const rated = allData.filter(d => d.rating);
+  const avgRating = rated.length ? (rated.reduce((s, d) => s + d.rating, 0) / rated.length).toFixed(1) : null;
+
+  // Top genres
+  const genreCounts = {};
+  allData.forEach(d => {
+    if (!d.genre) return;
+    d.genre.split(',').forEach(g => {
+      const clean = g.trim();
+      if (clean) genreCounts[clean] = (genreCounts[clean] || 0) + 1;
+    });
+  });
+  const topGenres = Object.entries(genreCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  // Top platforms
+  const platCounts = {};
+  allData.forEach(d => {
+    if (!d.platform) return;
+    platCounts[d.platform] = (platCounts[d.platform] || 0) + 1;
+  });
+  const topPlats = Object.entries(platCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+  // Best rated completed
+  const bestRated = completed.filter(d => d.rating >= 4).sort((a, b) => (b.rating - a.rating) || a.title.localeCompare(b.title)).slice(0, 5);
+
+  const statBox = (label, value, sub = '') =>
+    `<div class="stat-box"><div class="stat-value">${value}</div><div class="stat-label">${label}</div>${sub ? `<div class="stat-sub">${sub}</div>` : ''}</div>`;
+
+  const barRow = (label, count, max) =>
+    `<div class="bar-row"><span class="bar-label">${escapeHtml(label)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round((count/max)*100)}%"></div></div><span class="bar-count">${count}</span></div>`;
+
+  let html = '';
+
+  // Overview boxes
+  html += `<div class="stat-grid">
+    ${statBox('Total', allData.length)}
+    ${statBox('Completed', completed.length)}
+    ${statBox('In Progress', inProgress.length)}
+    ${statBox('Want List', wantList.length)}
+  </div>`;
+
+  // By type
+  html += `<div class="stat-grid" style="margin-top:8px">
+    ${statBox('Movies', movies.length, `${movies.filter(d=>d.status==='completed').length} done`)}
+    ${statBox('Series', series.length, `${series.filter(d=>d.status==='completed').length} done`)}
+    ${statBox('Limited', limited.length, `${limited.filter(d=>d.status==='completed').length} done`)}
+    ${statBox('Audiobooks', books.length, `${books.filter(d=>d.status==='completed').length} done`)}
+  </div>`;
+
+  if (avgRating) {
+    html += `<div class="stat-grid" style="margin-top:8px">
+      ${statBox('Avg Rating', avgRating + ' ★', `from ${rated.length} rated`)}
+    </div>`;
+  }
+
+  // Top genres
+  if (topGenres.length) {
+    const maxG = topGenres[0][1];
+    html += `<div class="section-title" style="margin-top:24px">Top Genres</div><div class="bar-list">`;
+    topGenres.forEach(([g, c]) => { html += barRow(g, c, maxG); });
+    html += '</div>';
+  }
+
+  // Top platforms
+  if (topPlats.length) {
+    const maxP = topPlats[0][1];
+    html += `<div class="section-title" style="margin-top:16px">By Platform</div><div class="bar-list">`;
+    topPlats.forEach(([p, c]) => { html += barRow(p, c, maxP); });
+    html += '</div>';
+  }
+
+  // Best rated
+  if (bestRated.length) {
+    html += `<div class="section-title" style="margin-top:16px">Highest Rated</div>`;
+    bestRated.forEach(d => { html += card(d); });
+  }
+
+  return html;
+}
+
 // ── Shared UI Helpers ──
 
 function sectionTitle(text, count, collapsible = false) {
@@ -850,6 +987,9 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     location.hash = btn.dataset.tab;
+    searchQuery = '';
+    const gs = document.getElementById('global-search');
+    if (gs) gs.value = '';
     renderTab(btn.dataset.tab);
   });
 });
@@ -868,8 +1008,17 @@ document.getElementById('fab-add').addEventListener('click', () => {
   showEditForm(null);
 });
 
+// Global search
+const globalSearch = document.getElementById('global-search');
+if (globalSearch) {
+  globalSearch.addEventListener('input', () => {
+    searchQuery = globalSearch.value.trim();
+    renderTab(currentTab);
+  });
+}
+
 const hash = location.hash.replace('#', '');
-if (['tonight', 'series', 'movies', 'audiobooks'].includes(hash)) {
+if (['tonight', 'series', 'movies', 'audiobooks', 'stats'].includes(hash)) {
   currentTab = hash;
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === hash);
