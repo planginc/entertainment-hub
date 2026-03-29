@@ -163,19 +163,25 @@ function tonightCard(d, context) {
 
   const isHero = context === 'in_progress';
 
+  const poster = d.metadata?.posterUrl ? `<img class="card-poster" src="${escapeHtml(d.metadata.posterUrl)}" alt="" loading="lazy">` : `<div class="card-poster card-poster--empty"></div>`;
   return `<div class="${isHero ? 'hero-card' : 'card'}" data-id="${d.id}">
-    <div class="card-header">
-      <div>
-        <div class="card-title">${escapeHtml(d.title)}</div>
-        <div class="card-subtitle">${escapeHtml(d.creator || '')}</div>
-        ${series ? `<div class="card-subtitle" style="font-size:0.75rem">${series}</div>` : ''}
-        ${position ? `<div class="card-subtitle" style="font-size:0.75rem">${position}</div>` : ''}
+    <div class="card-inner">
+      ${poster}
+      <div class="card-body">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${escapeHtml(d.title)}</div>
+            <div class="card-subtitle">${escapeHtml(d.creator || '')}</div>
+            ${series ? `<div class="card-subtitle" style="font-size:0.75rem">${series}</div>` : ''}
+            ${position ? `<div class="card-subtitle" style="font-size:0.75rem">${position}</div>` : ''}
+          </div>
+          <span class="status-dot ${d.status}"></span>
+        </div>
+        <div class="card-meta">
+          <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
+          ${actionBtn}
+        </div>
       </div>
-      <span class="status-dot ${d.status}"></span>
-    </div>
-    <div class="card-meta">
-      <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
-      ${actionBtn}
     </div>
   </div>`;
 }
@@ -186,19 +192,25 @@ function heroCard(d) {
   const position = d.current_position ? `<div class="card-subtitle">${escapeHtml(d.current_position)}</div>` : '';
   const timesInfo = d.times_completed > 1 ? ` (Listen #${d.times_completed + 1})` : '';
 
+  const poster = d.metadata?.posterUrl ? `<img class="card-poster" src="${escapeHtml(d.metadata.posterUrl)}" alt="" loading="lazy">` : `<div class="card-poster card-poster--empty"></div>`;
   return `<div class="hero-card" data-id="${d.id}">
-    <div class="card-header">
-      <div>
-        <div class="card-title">${escapeHtml(d.title)}${timesInfo}</div>
-        <div class="card-subtitle">${escapeHtml(d.creator)}${narrator ? ' &middot; ' + narrator : ''}</div>
-        ${series ? `<div class="card-subtitle">${series}</div>` : ''}
-        ${position}
+    <div class="card-inner">
+      ${poster}
+      <div class="card-body">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${escapeHtml(d.title)}${timesInfo}</div>
+            <div class="card-subtitle">${escapeHtml(d.creator)}${narrator ? ' &middot; ' + narrator : ''}</div>
+            ${series ? `<div class="card-subtitle">${series}</div>` : ''}
+            ${position}
+          </div>
+          <span class="status-dot ${d.status}"></span>
+        </div>
+        <div class="card-meta">
+          <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
+          ${d.media_type !== d.platform?.toLowerCase() ? `<span style="font-size:0.7rem;color:var(--text-dim)">${d.media_type}</span>` : ''}
+        </div>
       </div>
-      <span class="status-dot ${d.status}"></span>
-    </div>
-    <div class="card-meta">
-      <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
-      ${d.media_type !== d.platform?.toLowerCase() ? `<span style="font-size:0.7rem;color:var(--text-dim)">${d.media_type}</span>` : ''}
     </div>
   </div>`;
 }
@@ -208,31 +220,37 @@ function card(d, opts = {}) {
   const series = d.series_name ? `${escapeHtml(d.series_name)}${d.series_order ? ' #' + d.series_order : ''}` : '';
   const style = opts.muted ? 'opacity:0.7' : '';
 
+  const poster = d.metadata?.posterUrl ? `<img class="card-poster" src="${escapeHtml(d.metadata.posterUrl)}" alt="" loading="lazy">` : `<div class="card-poster card-poster--empty"></div>`;
   return `<div class="card" data-id="${d.id}" style="${style}">
-    <div class="card-header">
-      <div>
-        <div class="card-title">${escapeHtml(d.title)}</div>
-        <div class="card-subtitle">${escapeHtml(d.creator)}${narrator}</div>
-        ${series ? `<div class="card-subtitle" style="font-size:0.75rem">${series}</div>` : ''}
-        ${(() => {
-          if (!d.notes) return '';
-          const lines = d.notes.split('\n\n');
-          const scoreLine = lines[0].startsWith('Scores:') ? lines[0].replace('Scores:', '').trim() : null;
-          const overview = scoreLine ? lines.slice(1).join(' ').trim() : d.notes;
-          return (scoreLine ? `<div class="card-score">${escapeHtml(scoreLine)}</div>` : '') +
-                 (overview ? `<div class="card-subtitle" style="font-style:italic;font-size:0.75rem">${escapeHtml(overview)}</div>` : '');
-        })()}
+    <div class="card-inner">
+      ${poster}
+      <div class="card-body">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${escapeHtml(d.title)}</div>
+            <div class="card-subtitle">${escapeHtml(d.creator)}${narrator}</div>
+            ${series ? `<div class="card-subtitle" style="font-size:0.75rem">${series}</div>` : ''}
+            ${(() => {
+              if (!d.notes) return '';
+              const lines = d.notes.split('\n\n');
+              const scoreLine = lines[0].startsWith('Scores:') ? lines[0].replace('Scores:', '').trim() : null;
+              const overview = scoreLine ? lines.slice(1).join(' ').trim() : d.notes;
+              return (scoreLine ? `<div class="card-score">${escapeHtml(scoreLine)}</div>` : '') +
+                     (overview ? `<div class="card-subtitle" style="font-style:italic;font-size:0.75rem">${escapeHtml(overview)}</div>` : '');
+            })()}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <span class="status-dot ${d.status}"></span>
+            ${d.rating ? renderStars(d.rating) : ''}
+          </div>
+        </div>
+        <div class="card-meta">
+          <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
+          ${d.genre ? `<span class="genre-tag">${escapeHtml(d.genre.split(',')[0].trim())}</span>` : ''}
+          ${d.times_completed > 1 ? `<span style="font-size:0.7rem;color:var(--text-muted)">${d.times_completed}x</span>` : ''}
+          ${d.metadata?.runtime_minutes ? `<span style="font-size:0.7rem;color:var(--text-dim)">${formatRuntime(d.metadata.runtime_minutes)}</span>` : ''}
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-        <span class="status-dot ${d.status}"></span>
-        ${d.rating ? renderStars(d.rating) : ''}
-      </div>
-    </div>
-    <div class="card-meta">
-      <span class="platform-badge ${platformClass(d.platform)}">${escapeHtml(d.platform || 'Unknown')}</span>
-      ${d.genre ? `<span class="genre-tag">${escapeHtml(d.genre.split(',')[0].trim())}</span>` : ''}
-      ${d.times_completed > 1 ? `<span style="font-size:0.7rem;color:var(--text-muted)">${d.times_completed}x</span>` : ''}
-      ${d.metadata?.runtime_minutes ? `<span style="font-size:0.7rem;color:var(--text-dim)">${formatRuntime(d.metadata.runtime_minutes)}</span>` : ''}
     </div>
   </div>`;
 }
@@ -487,6 +505,7 @@ async function showDetail(id) {
   const seriesPos = series && item.series_order ? `Book ${item.series_order} of ${seriesItems.length}` : '';
 
   let html = `
+    ${item.metadata?.posterUrl ? `<img class="detail-poster" src="${escapeHtml(item.metadata.posterUrl)}" alt="${escapeHtml(item.title)}">` : ''}
     <div class="detail-title">${escapeHtml(item.title)}</div>
     <div class="detail-creator">${escapeHtml(item.creator)}</div>
 

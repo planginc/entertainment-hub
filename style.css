@@ -120,7 +120,8 @@ main {
 .card {
   background: var(--bg-card);
   border-radius: var(--radius);
-  padding: 14px 16px;
+  padding: 0;
+  overflow: hidden;
   margin-bottom: 8px;
   cursor: pointer;
   transition: background 0.15s;
@@ -128,6 +129,32 @@ main {
 }
 .card:hover { background: var(--bg-card-hover); }
 .card:active { border-color: var(--accent-dim); }
+
+.card-inner {
+  display: flex;
+  gap: 0;
+}
+
+.card-poster {
+  width: 56px;
+  min-width: 56px;
+  object-fit: cover;
+  border-radius: var(--radius) 0 0 var(--radius);
+  display: block;
+}
+
+.card-poster--empty {
+  width: 56px;
+  min-width: 56px;
+  background: var(--border);
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.card-body {
+  flex: 1;
+  padding: 12px 14px;
+  min-width: 0;
+}
 
 .card-header {
   display: flex;
@@ -430,6 +457,16 @@ main {
 .modal-close:hover { color: var(--text); }
 
 /* Detail view */
+.detail-poster {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  display: block;
+}
+
 .detail-title {
   font-size: 1.25rem;
   font-weight: 800;
@@ -600,12 +637,25 @@ main {
   background: linear-gradient(135deg, #1e293b 0%, #1a1a2e 100%);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 0;
+  overflow: hidden;
   margin-bottom: 8px;
   cursor: pointer;
   transition: border-color 0.15s;
 }
 .hero-card:hover { border-color: var(--accent-dim); }
+
+.hero-card .card-poster {
+  width: 70px;
+  min-width: 70px;
+}
+
+.hero-card .card-poster--empty {
+  width: 70px;
+  min-width: 70px;
+}
+
+.hero-card .card-body { padding: 16px; }
 
 .hero-card .card-title { font-size: 1.05rem; }
 
