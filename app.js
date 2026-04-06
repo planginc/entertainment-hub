@@ -1150,20 +1150,42 @@ function toggleChat() {
 }
 
 function formatAIText(text) {
-  // Escape HTML entities first
-  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  // Bold: **text**
-  let html = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Force inline bullets onto their own lines (handles • or - mid-paragraph)
-  html = html.replace(/\s*[•]\s*/g, '\n• ');
-  html = html.replace(/\s*-\s+(?=<strong>)/g, '\n• ');
-  // Convert newlines to <br>
-  html = html.replace(/\n/g, '<br>');
-  // Clean up leading <br> or stray bullets at start
-  html = html.replace(/^(<br>|•\s*)+/, '');
-  // Clean up double <br>
-  html = html.replace(/(<br>){2,}/g, '<br>');
-  return html;
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function boldify(s) {
+    return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  }
+
+  // Split on • bullet markers (inline or line-start)
+  const parts = text.split(/\s*•\s*/);
+  if (parts.length > 1) {
+    const intro = parts[0].trim();
+    const items = parts.slice(1).filter(s => s.trim());
+    let html = intro ? '<p>' + boldify(intro) + '</p>' : '';
+    html += '<ul>' + items.map(i => '<li>' + boldify(i.trim()) + '</li>').join('') + '</ul>';
+    return html;
+  }
+
+  // No bullets -- handle markdown-style - bullets on their own lines
+  const lines = text.split('\n');
+  if (lines.some(l => /^\s*-\s+/.test(l))) {
+    let html = '', inList = false;
+    for (const line of lines) {
+      if (/^\s*-\s+/.test(line)) {
+        if (!inList) { html += '<ul>'; inList = true; }
+        html += '<li>' + boldify(line.replace(/^\s*-\s+/, '')) + '</li>';
+      } else {
+        if (inList) { html += '</ul>'; inList = false; }
+        if (line.trim()) html += '<p>' + boldify(line) + '</p>';
+      }
+    }
+    if (inList) html += '</ul>';
+    return html;
+  }
+
+  // Plain text -- just bold and line breaks
+  return boldify(text).replace(/\n+/g, '<br>');
 }
 
 function appendChatMsg(role, text) {

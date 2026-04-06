@@ -849,6 +849,9 @@ main {
 }
 
 .chat-welcome { color: var(--text-muted); font-style: italic; }
+.chat-msg-ai p { margin: 0 0 4px 0; }
+.chat-msg-ai ul { margin: 4px 0 0 0; padding-left: 18px; }
+.chat-msg-ai li { margin-bottom: 5px; line-height: 1.45; }
 
 .chat-input-row {
   padding: 8px;
