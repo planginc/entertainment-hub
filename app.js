@@ -1154,12 +1154,15 @@ function formatAIText(text) {
   const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   // Bold: **text**
   let html = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Convert lines starting with bullet markers into list items
-  html = html.replace(/^[\s]*[•\-]\s+/gm, '<br>• ');
-  // Collapse remaining newlines into <br>
+  // Force inline bullets onto their own lines (handles • or - mid-paragraph)
+  html = html.replace(/\s*[•]\s*/g, '\n• ');
+  html = html.replace(/\s*-\s+(?=<strong>)/g, '\n• ');
+  // Convert newlines to <br>
   html = html.replace(/\n/g, '<br>');
-  // Clean up leading <br> if the message starts with a bullet
-  html = html.replace(/^(<br>)+/, '');
+  // Clean up leading <br> or stray bullets at start
+  html = html.replace(/^(<br>|•\s*)+/, '');
+  // Clean up double <br>
+  html = html.replace(/(<br>){2,}/g, '<br>');
   return html;
 }
 
