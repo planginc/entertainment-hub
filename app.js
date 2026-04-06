@@ -1242,4 +1242,13 @@ chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
 });
 
+// Close chat when clicking outside it
+document.addEventListener('click', (e) => {
+  const panel = document.getElementById('chat-panel');
+  const btn = document.getElementById('chat-btn');
+  if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !btn.contains(e.target)) {
+    panel.classList.add('hidden');
+  }
+});
+
 loadData();
