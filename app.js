@@ -1111,15 +1111,27 @@ document.getElementById('voice-add-modal').addEventListener('click', (e) => {
 // ── AI Chat ──
 
 const CHAT_KEY = 'entChat_' + CURRENT_USER_ID;
+const CHAT_TS_KEY = 'entChatTs_' + CURRENT_USER_ID;
+const CHAT_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 let chatHistory = [];
 
 function saveChatHistory() {
-  try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatHistory)); } catch (_) {}
+  try {
+    localStorage.setItem(CHAT_KEY, JSON.stringify(chatHistory));
+    localStorage.setItem(CHAT_TS_KEY, Date.now().toString());
+  } catch (_) {}
 }
 
 function loadChatHistory() {
   try {
+    const ts = parseInt(localStorage.getItem(CHAT_TS_KEY) || '0', 10);
+    if (Date.now() - ts > CHAT_TTL) {
+      localStorage.removeItem(CHAT_KEY);
+      localStorage.removeItem(CHAT_TS_KEY);
+      chatHistory = [];
+      return;
+    }
     const saved = localStorage.getItem(CHAT_KEY);
     if (saved) chatHistory = JSON.parse(saved);
   } catch (_) { chatHistory = []; }
