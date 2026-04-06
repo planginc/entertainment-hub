@@ -47,8 +47,68 @@
       </div>
     </div>
 
-    <!-- FAB for adding new items -->
-    <button id="fab-add" title="Add new item">+</button>
+    <!-- Voice / Quick Add Modal -->
+    <div id="voice-add-modal" class="modal hidden">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeVoiceAdd()">&times;</button>
+        <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:16px">Quick Add</h2>
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input class="form-input" id="voice-title" placeholder="Show or movie name...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select class="form-select" id="voice-type">
+            <option value="movie">Movie</option>
+            <option value="series">Series</option>
+            <option value="limited_series">Limited Series</option>
+            <option value="audiobook">Audiobook</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Platform (optional)</label>
+          <select class="form-select" id="voice-platform">
+            <option value="">Unknown</option>
+            <option>Netflix</option>
+            <option>Amazon Prime</option>
+            <option>Hulu</option>
+            <option>Paramount Plus</option>
+            <option>Starz</option>
+            <option>Apple TV+</option>
+            <option>Disney+</option>
+            <option>HBO Max</option>
+            <option>Peacock</option>
+            <option>Audible</option>
+          </select>
+        </div>
+        <div class="detail-actions">
+          <button id="voice-submit-btn" class="btn primary" onclick="submitVoiceAdd()">Add to List</button>
+          <button class="btn" onclick="closeVoiceAdd()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Chat -->
+    <div id="chat-panel" class="hidden">
+      <div class="chat-header">
+        <span>Assistant</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="chat-new" title="Start new chat">New chat</button>
+          <button id="chat-close">&times;</button>
+        </div>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="chat-msg-ai chat-welcome">What can I help you with? You can say things like "add Jaws 1, 2, and 3" or "I finished Severance" or "remove The Crown".</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea id="chat-input" rows="1" inputmode="text" autocorrect="on" autocapitalize="sentences" spellcheck="true" placeholder="Ask or tell me anything..."></textarea>
+        <button id="chat-send">Send</button>
+      </div>
+    </div>
+    <button id="chat-btn" title="AI assistant">💬</button>
+
+    <!-- FAB buttons -->
+    <button id="fab-add" title="Add with full details">+</button>
   </div>
 
   <script src="app.js"></script>

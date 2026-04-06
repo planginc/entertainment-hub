@@ -1,5 +1,22 @@
 const CONVEX_SITE = 'https://exuberant-lapwing-294.convex.site';
 
+// ── User routing ──
+const USER_MAP = {
+  pam:   '6285585111',
+  bruce: 'bruce-entertainment',
+  karen: 'karen-entertainment',
+  lori:  'lori-entertainment',
+};
+const USER_NAMES = {
+  pam:   'Entertainment Hub',
+  bruce: "Bruce's Hub",
+  karen: "Karen's Hub",
+  lori:  "Lori's Hub",
+};
+const urlUser = (new URLSearchParams(location.search).get('user') || 'pam').toLowerCase();
+const CURRENT_USER_ID   = USER_MAP[urlUser]   || '6285585111';
+const CURRENT_USER_NAME = USER_NAMES[urlUser] || 'Entertainment Hub';
+
 let allData = [];
 let currentTab = 'tonight';
 let currentSubFilter = {};
@@ -58,7 +75,7 @@ function escapeHtml(str) {
 
 async function loadData() {
   try {
-    const data = await apiGet('/api/entertainment');
+    const data = await apiGet(`/api/entertainment?userTelegramId=${encodeURIComponent(CURRENT_USER_ID)}`);
     allData = data || [];
     allData.sort((a, b) => {
       const sn = (a.series_name || '').localeCompare(b.series_name || '');
@@ -559,6 +576,7 @@ async function showDetail(id) {
   html += `<div class="detail-actions">
     ${item.status !== 'completed' ? `<button class="btn success" onclick="markCompleted('${item.id}')">Mark Completed</button>` : ''}
     ${item.status !== 'in_progress' ? `<button class="btn primary" onclick="setStatus('${item.id}','in_progress')">Start</button>` : ''}
+    ${item.status === 'in_progress' || item.status === 'paused' ? `<button class="btn" style="color:var(--blue)" onclick="setStatus('${item.id}','want')">Want to Watch</button>` : ''}
     ${item.status === 'in_progress' ? `<button class="btn" style="color:var(--yellow)" onclick="setStatus('${item.id}','paused')">Pause</button>` : ''}
     ${item.status === 'in_progress' && item.media_type === 'series' ? `<button class="btn" style="color:var(--orange)" onclick="setStatus('${item.id}','waiting')">Caught Up</button>` : ''}
     ${item.status === 'waiting' ? `<button class="btn primary" onclick="setStatus('${item.id}','in_progress')">New Season!</button>` : ''}
@@ -664,8 +682,15 @@ function showEditForm(id) {
       <div class="form-group">
         <label class="form-label">Status</label>
         <select class="form-select" name="status">
-          ${['want','in_progress','waiting','paused','completed','dropped'].map(s =>
-            `<option value="${s}" ${item?.status === s ? 'selected' : ''}>${s.replace('_',' ')}</option>`
+          ${[
+            ['want',       'Want to Watch'],
+            ['in_progress','In Progress'],
+            ['waiting',    'Waiting for New Season'],
+            ['paused',     'Paused'],
+            ['completed',  'Completed'],
+            ['dropped',    'Dropped'],
+          ].map(([val, label]) =>
+            `<option value="${val}" ${item?.status === val ? 'selected' : ''}>${label}</option>`
           ).join('')}
         </select>
       </div>
@@ -719,9 +744,13 @@ function showEditForm(id) {
     try {
       if (isNew) {
         data.owned = data.media_type === 'audiobook';
+        data.userTelegramId = CURRENT_USER_ID;
         await apiPost('/api/entertainment/insert', data);
       } else {
-        await apiPost('/api/entertainment/update', { id, ...data });
+        // Strip null/undefined -- Convex optional fields reject null
+        const updatePayload = { id };
+        Object.entries(data).forEach(([k, v]) => { if (v != null) updatePayload[k] = v; });
+        await apiPost('/api/entertainment/update', updatePayload);
       }
       closeModals();
       await loadData();
@@ -1012,6 +1041,7 @@ document.getElementById('fab-add').addEventListener('click', () => {
   showEditForm(null);
 });
 
+
 // Global search
 const globalSearch = document.getElementById('global-search');
 if (globalSearch) {
@@ -1028,5 +1058,163 @@ if (['tonight', 'series', 'movies', 'audiobooks', 'stats'].includes(hash)) {
     b.classList.toggle('active', b.dataset.tab === hash);
   });
 }
+
+// ── Set page title for current user ──
+document.querySelector('header h1').textContent = CURRENT_USER_NAME;
+document.title = CURRENT_USER_NAME;
+
+// ── Voice / Quick Add ──
+
+function showVoiceAdd() {
+  document.getElementById('voice-add-modal').classList.remove('hidden');
+  document.getElementById('voice-title').value = '';
+  document.getElementById('voice-title').focus();
+}
+
+function closeVoiceAdd() {
+  document.getElementById('voice-add-modal').classList.add('hidden');
+}
+
+
+async function submitVoiceAdd() {
+  const title = document.getElementById('voice-title').value.trim();
+  const mediaType = document.getElementById('voice-type').value;
+  const platform = document.getElementById('voice-platform').value;
+  if (!title) {
+    document.getElementById('voice-title').focus();
+    return;
+  }
+  const btn = document.getElementById('voice-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+  try {
+    await apiPost('/api/entertainment/add', {
+      title,
+      media_type: mediaType,
+      platform: platform || undefined,
+      userTelegramId: CURRENT_USER_ID,
+    });
+    closeVoiceAdd();
+    await loadData();
+    showToast(`Added "${title}"`);
+  } catch (err) {
+    alert('Failed to add: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Add to List';
+  }
+}
+
+document.getElementById('voice-add-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('voice-add-modal')) closeVoiceAdd();
+});
+
+// ── AI Chat ──
+
+const CHAT_KEY = 'entChat_' + CURRENT_USER_ID;
+
+let chatHistory = [];
+
+function saveChatHistory() {
+  try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatHistory)); } catch (_) {}
+}
+
+function loadChatHistory() {
+  try {
+    const saved = localStorage.getItem(CHAT_KEY);
+    if (saved) chatHistory = JSON.parse(saved);
+  } catch (_) { chatHistory = []; }
+}
+
+function restoreChatMessages() {
+  const msgs = document.getElementById('chat-messages');
+  chatHistory.forEach(m => {
+    const el = document.createElement('div');
+    el.className = m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai';
+    el.textContent = m.content;
+    msgs.appendChild(el);
+  });
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) {
+    document.getElementById('chat-messages').scrollTop = 999999;
+    document.getElementById('chat-input').focus();
+  }
+}
+
+function appendChatMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = role === 'user' ? 'chat-msg-user' : 'chat-msg-ai';
+  el.textContent = text;
+  const msgs = document.getElementById('chat-messages');
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+  return el;
+}
+
+function clearChat() {
+  chatHistory = [];
+  saveChatHistory();
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML = '<div class="chat-msg-ai chat-welcome">What can I help you with? You can say things like "add Jaws 1, 2, and 3" or "I finished Severance" or "remove The Crown".</div>';
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  appendChatMsg('user', message);
+  const thinking = appendChatMsg('ai', '...');
+  const sendBtn = document.getElementById('chat-send');
+  sendBtn.disabled = true;
+
+  try {
+    const res = await apiPost('/api/entertainment/chat', {
+      message,
+      history: chatHistory,
+      userTelegramId: CURRENT_USER_ID,
+    });
+    const reply = res.reply || 'Done.';
+    thinking.textContent = reply;
+    chatHistory.push({ role: 'user', content: message });
+    chatHistory.push({ role: 'assistant', content: reply });
+    if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
+    saveChatHistory();
+    if (res.refresh) await loadData();
+  } catch (err) {
+    thinking.textContent = 'Something went wrong. Try again.';
+  } finally {
+    sendBtn.disabled = false;
+    document.getElementById('chat-input').focus();
+  }
+}
+
+
+// Restore chat history on load
+loadChatHistory();
+restoreChatMessages();
+
+function resizeChatInput() {
+  const el = document.getElementById('chat-input');
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+const chatInput = document.getElementById('chat-input');
+
+document.getElementById('chat-btn').addEventListener('click', toggleChat);
+document.getElementById('chat-close').addEventListener('click', toggleChat);
+document.getElementById('chat-new').addEventListener('click', clearChat);
+document.getElementById('chat-send').addEventListener('click', sendChat);
+chatInput.addEventListener('input', resizeChatInput);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
 
 loadData();
