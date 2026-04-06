@@ -10,7 +10,8 @@ A personal entertainment tracker for Pam. Tracks movies, TV series, limited seri
 - Convex HTTP API: https://exuberant-lapwing-294.convex.site/api/entertainment
 
 ## Rules specific to this project
-- No build step. Edit HTML/CSS/JS directly. Deploy = push to GitHub (Netlify auto-deploys).
+- No build step. Edit HTML/CSS/JS directly.
+- **Deploy = `npx netlify-cli deploy --prod`** from this folder. git push alone does NOT trigger Netlify. Manual CLI deploy required every session.
 - All reads/writes go through the Convex HTTP API, not Supabase.
 - Convex IDs are strings. Never parseInt() them. All onclick handlers must quote IDs: `onclick="fn('${d.id}')"`.
 - The `/api/entertainment` GET endpoint accepts `?userTelegramId=6285585111`.
@@ -21,29 +22,24 @@ A personal entertainment tracker for Pam. Tracks movies, TV series, limited seri
 - Do NOT use parseInt() on item IDs. This was a recurring bug during migration.
 - No `entertainment_history` table exists in Convex. Do not reference it.
 
-## Current state (March 27, 2026)
-- Fully migrated to Convex. 439 records migrated from Supabase + new ones from JJ.
-- app.js uses apiGet()/apiPost() wrappers to call Convex HTTP API.
-- JJ now routes watch-list additions via [ENTERTAINMENT:] intent directly to Convex.
-- index.html has no Supabase script tag.
+## Multi-user architecture
+URL param `?user=name` routes to each person's data. Mapping lives in `app.js` USER_MAP:
+- `pam` → `6285585111` (default, no param needed)
+- `bruce` → `bruce-entertainment`
+- `karen` → `karen-entertainment`
+- `lori` → `lori-entertainment`
 
-## Next session: backlog
+To add a new user: add to USER_MAP + USER_NAMES in app.js, add label in gobot/convex/http.ts chat handler, run copy script if seeding from Pam's list.
 
-### 1. Auto-enrich on add (JJ side, in memory.ts [ENTERTAINMENT:] handler)
-When JJ adds an item, it should auto-search for details before inserting:
-- Genre
-- Description/overview (1-3 sentences)
-- Release year
-- Creator/director
-- Number of seasons/episodes (for series)
-- Runtime (for movies)
+## AI chatbot
+Convex HTTP action at `/api/entertainment/chat` (POST). Uses claude-haiku-4-5-20251001 with tool_use (add_item, update_item, delete_item). Chat history persists in localStorage keyed by user ID. Defined in gobot/convex/http.ts.
 
-Implementation: in memory.ts, after parsing the [ENTERTAINMENT:] tag and before calling the Convex insert endpoint, use the Brave/web search tool or a TMDB/OMDB API call to fetch metadata. Store in the existing fields (genre, notes/overview, creator, seasons) plus metadata{} for anything extra.
+## TMDB integration
+- `addWithTmdb` Convex action fetches: posterUrl, tmdbId, trailerKey, overview, vote_average
+- Notes field format: `Scores: TMDB: X.X\n\n[overview]` -- matches JJ's format
+- TMDB_API_KEY set as Convex env var (also in gobot/.env)
+- JJ also auto-fetches on every new add via gobot/src/lib/memory.ts
+- Some items have no trailerKey -- expected, ~15% not in TMDB video DB
 
-TMDB API is free and has comprehensive movie/TV data. Consider adding TMDB_API_KEY to .env.
-
-### 2. Display genre + overview in the app
-The app currently shows title, platform, status, rating. Add:
-- Genre badge on each card
-- "About" section in the detail modal (overview text)
-- These fields already exist in the Convex schema, just not displayed yet.
+## Convex project ID
+`kd7eqg7xj0qd8zkqp523eqnjr183f6zc`

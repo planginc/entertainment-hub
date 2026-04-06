@@ -1,5 +1,6 @@
 .DS_Store
 node_modules/
+transcripts/
 
 # Local Netlify folder
 .netlify
