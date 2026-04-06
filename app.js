@@ -1130,7 +1130,11 @@ function restoreChatMessages() {
   chatHistory.forEach(m => {
     const el = document.createElement('div');
     el.className = m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai';
-    el.textContent = m.content;
+    if (m.role === 'user') {
+      el.textContent = m.content;
+    } else {
+      el.innerHTML = formatAIText(m.content);
+    }
     msgs.appendChild(el);
   });
   msgs.scrollTop = msgs.scrollHeight;
@@ -1145,10 +1149,28 @@ function toggleChat() {
   }
 }
 
+function formatAIText(text) {
+  // Escape HTML entities first
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Bold: **text**
+  let html = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Convert lines starting with bullet markers into list items
+  html = html.replace(/^[\s]*[•\-]\s+/gm, '<br>• ');
+  // Collapse remaining newlines into <br>
+  html = html.replace(/\n/g, '<br>');
+  // Clean up leading <br> if the message starts with a bullet
+  html = html.replace(/^(<br>)+/, '');
+  return html;
+}
+
 function appendChatMsg(role, text) {
   const el = document.createElement('div');
   el.className = role === 'user' ? 'chat-msg-user' : 'chat-msg-ai';
-  el.textContent = text;
+  if (role === 'user') {
+    el.textContent = text;
+  } else {
+    el.innerHTML = formatAIText(text);
+  }
   const msgs = document.getElementById('chat-messages');
   msgs.appendChild(el);
   msgs.scrollTop = msgs.scrollHeight;
@@ -1181,14 +1203,14 @@ async function sendChat() {
       userTelegramId: CURRENT_USER_ID,
     });
     const reply = res.reply || 'Done.';
-    thinking.textContent = reply;
+    thinking.innerHTML = formatAIText(reply);
     chatHistory.push({ role: 'user', content: message });
     chatHistory.push({ role: 'assistant', content: reply });
     if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
     saveChatHistory();
     if (res.refresh) await loadData();
   } catch (err) {
-    thinking.textContent = 'Something went wrong. Try again.';
+    thinking.innerHTML = 'Something went wrong. Try again.';
   } finally {
     sendBtn.disabled = false;
     document.getElementById('chat-input').focus();
