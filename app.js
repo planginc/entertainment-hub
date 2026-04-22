@@ -312,6 +312,9 @@ function renderSeriesTab() {
   const paused = getByStatus(items, 'paused');
   const want = getByStatus(items, 'want');
   const completed = getByStatus(items, 'completed');
+  const completedLimited = getByStatus(limitedItems, 'completed');
+  const activeLimited = limitedItems.filter(d => d.status !== 'completed');
+  const allCompleted = [...completed, ...completedLimited];
 
   const active = currentSubFilter['series'] || 'watching';
 
@@ -319,9 +322,9 @@ function renderSeriesTab() {
     { key: 'watching', label: 'Currently Watching', count: inProgress.length },
     { key: 'caught_up', label: 'Caught Up', count: waiting.length },
     { key: 'want', label: 'Want to Watch', count: want.length },
-    { key: 'limited', label: 'Limited Series', count: limitedItems.length },
+    { key: 'limited', label: 'Limited Series', count: activeLimited.length },
     { key: 'paused', label: 'Paused', count: paused.length },
-    { key: 'completed', label: 'Completed', count: completed.length },
+    { key: 'completed', label: 'Completed', count: allCompleted.length },
   ], 'series');
 
   html += '<div class="sub-filter-content">';
@@ -350,11 +353,10 @@ function renderSeriesTab() {
       html += '<div class="empty-state">Nothing in the queue.</div>';
     }
   } else if (active === 'limited') {
-    if (limitedItems.length) {
-      const wantLimited = getByStatus(limitedItems, 'want');
-      const progressLimited = getByStatus(limitedItems, 'in_progress');
-      const doneLimited = getByStatus(limitedItems, 'completed');
-      [...progressLimited, ...wantLimited, ...doneLimited].forEach(d => { html += tonightCard(d, d.status); });
+    if (activeLimited.length) {
+      const wantLimited = getByStatus(activeLimited, 'want');
+      const progressLimited = getByStatus(activeLimited, 'in_progress');
+      [...progressLimited, ...wantLimited].forEach(d => { html += tonightCard(d, d.status); });
     } else {
       html += '<div class="empty-state">No limited series yet. Add some!</div>';
     }
@@ -365,8 +367,8 @@ function renderSeriesTab() {
       html += '<div class="empty-state">No paused series.</div>';
     }
   } else if (active === 'completed') {
-    if (completed.length) {
-      completed.sort((a, b) => (b.rating || 0) - (a.rating || 0)).forEach(d => { html += card(d); });
+    if (allCompleted.length) {
+      allCompleted.sort((a, b) => (b.rating || 0) - (a.rating || 0)).forEach(d => { html += card(d); });
     } else {
       html += '<div class="empty-state">No completed series.</div>';
     }
