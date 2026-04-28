@@ -6,12 +6,14 @@ const USER_MAP = {
   bruce: 'bruce-entertainment',
   karen: 'karen-entertainment',
   lori:  'lori-entertainment',
+  demo:  'demo-entertainment',
 };
 const USER_NAMES = {
   pam:   'Entertainment Hub',
   bruce: "Bruce's Hub",
   karen: "Karen's Hub",
   lori:  "Lori's Hub",
+  demo:  'Demo Hub',
 };
 const urlUser = (new URLSearchParams(location.search).get('user') || 'pam').toLowerCase();
 const CURRENT_USER_ID   = USER_MAP[urlUser]   || '6285585111';
