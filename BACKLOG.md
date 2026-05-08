@@ -1,7 +1,7 @@
 # Entertainment Hub: BACKLOG
 
-## Current state (April 7, 2026)
-Multi-user app with AI chatbot. Four users: Pam, Bruce, Karen, Lori.
+## Current state (April 27, 2026)
+Multi-user app with AI chatbot. Four users: Pam, Bruce, Karen, Lori. Demo user (?user=demo) live at pams-entertainment-hub.netlify.app?user=demo with daily 3am reset.
 
 - ~480 records for Pam (341 audiobooks, rest movies/series/limited)
 - Bruce, Karen, Lori each seeded with Pam's 136 movies/series/limited (status: want)
@@ -39,3 +39,7 @@ None.
 ## Backlog
 
 1. **Add a portfolio demo to the Entertainment Hub.** Pam wants the Entertainment Hub to have the same public-demo system she built for the Recipe App on 2026-04-24: an ephemeral per-visitor `?demo` URL that seeds a sandboxed copy of her real library, a guided 90-second Shepherd.js tour with green-check bullets and progress dots, a Claude Haiku feedback channel that pings Pam's Telegram on every demo chat, and a daily 3am cron that wipes all `demo-*` records so the demo is always fresh. Done looks like: a recruiter clicks "Try the demo" from Pam's portfolio, lands on `https://pams-entertainment-hub.netlify.app/?demo`, gets their own seeded copy of ~50-100 movies/audiobooks/series, walks an auto-starting tour that highlights the chatbot, voice quick-add, surprise-me, and TMDB enrichment, and can talk to JJ (or whichever persona) in chat, and any feedback they type goes straight to Pam's phone. **The full step-by-step playbook is at `/Users/pam/.claude/knowledge-base/portfolio-demo-pattern.md`** -- it covers all 4 phases (seeder, tour, feedback channel, daily wipe), the Card format recipe (title -> blurb -> green-check bullets -> tail), the welcome modal template with Pam's voice, all 14 copy anti-patterns, all 15 pitfalls with measured fixes (the 4-second waitForElement timeout, the stacked-tooltips-on-replay bug, the Shepherd unkillable-300ms-focus floor), the full reference tour copy with rationale for every structural choice, and the AppleScript + cache-bust commands for verification. There is also a `/portfolio-demo` Claude Code skill that reads the playbook and dispatches the build for you when you invoke it. Budget reality: 3-4 focused sessions, not one. Pre-flight before writing code: identify the wow feature (probably the chatbot or surprise-me), draft all stop copy in plain text and get Pam's approval BEFORE touching code, plan to iterate copy 5-10 times per stop after the first ship. Added 2026-04-24 from recipe-app session.
+
+---
+
+Historical session changelogs and preserved-completed content moved to `BACKLOG-ARCHIVE.md` (not loaded into session context).
