@@ -4,3 +4,4 @@ transcripts/
 
 # Local Netlify folder
 .netlify
+graphify-out/
